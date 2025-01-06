@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>geojson2bbox</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://unpkg.com/maplibre-gl@2.3.0/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.3.0/mapbox-gl-draw.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <style>
+      #map {
+        height: 500px;
+      }
+      #toast {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        z-index: 1000;
+        display: none;
+        background-color: #333;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 font-sans">
+    <div class="max-w-4xl mx-auto p-4">
+      <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">
+        geojson2bbox
+      </h1>
+
+      <div class="bg-white shadow-lg rounded-lg p-6 mb-8">
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-2"
+            >Paste GeoJSON:</label
+          >
+          <textarea
+            id="geojson-input"
+            class="w-full p-3 border border-gray-300 rounded-lg"
+            rows="4"
+            placeholder="Paste your GeoJSON here and press Enter..."
+          ></textarea>
+        </div>
+
+        <div class="mb-4 text-sm text-gray-500">
+          <p>
+            Press <strong>Enter</strong> after pasting GeoJSON to display it on
+            the map and calculate the bounding box.
+          </p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-2"
+            >Upload GeoJSON:</label
+          >
+          <input
+            id="geojson-upload"
+            type="file"
+            accept=".geojson"
+            class="hidden"
+          />
+          <label
+            for="geojson-upload"
+            class="inline-block p-3 border border-gray-300 rounded-lg cursor-pointer text-center bg-white text-gray-700 hover:bg-gray-100"
+          >
+            <span class="material-icons align-middle">file_upload</span> Upload
+            GeoJSON File
+          </label>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-2"
+            >Drag and Drop GeoJSON:</label
+          >
+          <div
+            id="drop-area"
+            class="w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer bg-gray-50 hover:bg-gray-100"
+          >
+            <span class="material-icons text-4xl text-gray-400"
+              >cloud_upload</span
+            >
+            <p class="text-gray-500">Drag and drop your GeoJSON file here...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white shadow-lg rounded-lg p-6 mb-8">
+        <h2 class="text-2xl font-bold mb-4">Bounding Box</h2>
+        <pre
+          id="bbox-output"
+          class="bg-gray-100 p-4 rounded-lg overflow-x-auto text-gray-800"
+        ></pre>
+        <div class="mb-2 text-sm text-gray-500">
+          <p>BBox Format: [min_x, min_y, max_x, max_y]</p>
+        </div>
+        <button
+          id="copy-bbox"
+          class="w-full bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 mb-4"
+        >
+          <span class="material-icons align-middle">content_copy</span> Copy to
+          Clipboard
+        </button>
+      </div>
+
+      <div id="map" class="w-full rounded-lg mb-8 border border-gray-300"></div>
+
+      <div class="text-center text-gray-500 text-sm">
+        &copy; 2025 | Created by Kshitij Raj Sharma
+      </div>
+
+      <div id="toast"></div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@2.3.0/dist/maplibre-gl.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.3.0/mapbox-gl-draw.js"></script>
+    <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+    <script>
+      const style = {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "&copy; OpenStreetMap Contributors",
+            maxzoom: 19,
+          },
+        },
+        layers: [
+          {
+            id: "osm",
+            type: "raster",
+            source: "osm",
+          },
+        ],
+      };
+
+      var map = new maplibregl.Map({
+        container: "map",
+        style: style,
+        center: [0, 0],
+        zoom: 2,
+      });
+
+      map.on("load", function () {
+        map.addSource("geojson", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [],
+          },
+        });
+
+        map.addLayer({
+          id: "geojson-layer",
+          type: "fill",
+          source: "geojson",
+          paint: {
+            "fill-color": "#888888",
+            "fill-opacity": 0.5,
+          },
+        });
+
+        map.addLayer({
+          id: "geojson-line-layer",
+          type: "line",
+          source: "geojson",
+          paint: {
+            "line-color": "#000000",
+            "line-width": 2,
+          },
+        });
+
+        // Add search control
+        map.addControl(new maplibregl.NavigationControl());
+        map.addControl(
+          new MapboxGeocoder({
+            accessToken: "your-mapbox-access-token",
+            maplibregl: maplibregl,
+          })
+        );
+      });
+
+      var draw = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: {
+          polygon: true,
+          rectangle: true,
+          trash: true,
+        },
+        defaultMode: "draw_polygon",
+      });
+      map.addControl(draw);
+
+      map.on("draw.create", updateBBox);
+      map.on("draw.update", updateBBox);
+      map.on("draw.delete", updateBBox);
+
+      function updateBBox() {
+        var data = draw.getAll();
+        if (data.features.length > 0) {
+          var bbox = turf.bbox(data);
+          document.getElementById("bbox-output").textContent =
+            JSON.stringify(bbox);
+          map.fitBounds([
+            [bbox[0], bbox[1]],
+            [bbox[2], bbox[3]],
+          ]);
+        } else {
+          document.getElementById("bbox-output").textContent = "";
+        }
+      }
+
+      function showToast(message) {
+        var toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.style.display = "block";
+        setTimeout(() => {
+          toast.style.display = "none";
+        }, 3000);
+      }
+
+      var dropArea = document.getElementById("drop-area");
+      dropArea.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        dropArea.classList.add("bg-gray-100");
+      });
+      dropArea.addEventListener("dragleave", () => {
+        dropArea.classList.remove("bg-gray-100");
+      });
+      dropArea.addEventListener("drop", (event) => {
+        event.preventDefault();
+        dropArea.classList.remove("bg-gray-100");
+        var file = event.dataTransfer.files[0];
+        processFile(file);
+      });
+
+      document
+        .getElementById("geojson-upload")
+        .addEventListener("change", (event) => {
+          var file = event.target.files[0];
+          processFile(file);
+        });
+
+      document
+        .getElementById("geojson-input")
+        .addEventListener("keypress", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            var geojsonInput = document.getElementById("geojson-input").value;
+            try {
+              var geojson = JSON.parse(geojsonInput);
+              plotGeoJSON(geojson);
+              calculateBBox(geojson);
+            } catch (e) {
+              showToast("Invalid GeoJSON");
+            }
+          }
+        });
+
+      function processFile(file) {
+        var reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            var geojson = JSON.parse(event.target.result);
+            document.getElementById("geojson-input").value = JSON.stringify(
+              geojson,
+              null,
+              2
+            );
+            plotGeoJSON(geojson);
+            calculateBBox(geojson);
+          } catch (e) {
+            showToast("Invalid GeoJSON");
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function plotGeoJSON(geojson) {
+        if (!geojson.crs) {
+          geojson.crs = {
+            type: "name",
+            properties: {
+              name: "urn:ogc:def:crs:OGC:1.3:CRS84",
+            },
+          };
+        }
+        map.getSource("geojson").setData(geojson);
+      }
+
+      function calculateBBox(geojson) {
+        var bbox = turf.bbox(geojson);
+        document.getElementById("bbox-output").textContent =
+          JSON.stringify(bbox);
+        map.fitBounds([
+          [bbox[1], bbox[0]],
+          [bbox[3], bbox[2]],
+        ]);
+      }
+
+      document.getElementById("copy-bbox").addEventListener("click", () => {
+        var bboxOutput = document.getElementById("bbox-output").textContent;
+        navigator.clipboard.writeText(bboxOutput).then(() => {
+          showToast("BBox copied to clipboard");
+        });
+      });
+    </script>
+  </body>
+</html>
