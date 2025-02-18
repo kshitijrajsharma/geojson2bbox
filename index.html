@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2951/2951277.png">
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://cdn-icons-png.flaticon.com/512/2951/2951277.png"
+    />
     <title>geojson2bbox</title>
     <link
       href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
@@ -124,6 +128,14 @@
         >
           <span class="material-icons align-middle">content_copy</span> Copy to
           Clipboard
+        </button>
+        <button
+          id="download-bbox"
+          class="w-full bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 mb-4"
+          title="Download BBox as GeoJSON"
+        >
+          <span class="material-icons align-middle">file_download</span>
+          Download
         </button>
       </div>
 
@@ -296,6 +308,48 @@
         navigator.clipboard.writeText(bboxOutput).then(() => {
           showToast("BBox copied to clipboard");
         });
+      });
+
+      document.getElementById("download-bbox").addEventListener("click", () => {
+        var bboxOutput = document.getElementById("bbox-output").textContent;
+        if (bboxOutput) {
+          var bboxArray = JSON.parse(bboxOutput);
+          var bboxGeoJSON = {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [bboxArray[0], bboxArray[1]],
+                      [bboxArray[2], bboxArray[1]],
+                      [bboxArray[2], bboxArray[3]],
+                      [bboxArray[0], bboxArray[3]],
+                      [bboxArray[0], bboxArray[1]],
+                    ],
+                  ],
+                },
+              },
+            ],
+          };
+          var blob = new Blob([JSON.stringify(bboxGeoJSON)], {
+            type: "application/json",
+          });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "bbox.geojson";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast("BBox downloaded as GeoJSON");
+        } else {
+          showToast("No BBox to download");
+        }
       });
 
       document
