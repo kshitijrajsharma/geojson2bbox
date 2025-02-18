@@ -197,6 +197,24 @@
           trash: false,
         },
         defaultMode: "draw_polygon",
+        styles: [
+          {
+            id: "gl-draw-polygon-stroke-active",
+            type: "line",
+            paint: {
+              "line-color": "#D20C0C",
+              "line-width": 2,
+            },
+          },
+          {
+            id: "gl-draw-polygon-stroke-inactive",
+            type: "line",
+            paint: {
+              "line-color": "#D20C0C",
+              "line-width": 2,
+            },
+          },
+        ],
       });
       map.addControl(draw);
 
