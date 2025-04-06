@@ -1,4 +1,4 @@
-## geojson2bbox 
+## GeoJSON to bounding box ( BBOX)  
 
 Simple tool to paste/ upload your geojson and copy bounding box , Convert your geojson to bbox
 
