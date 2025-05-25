@@ -172,8 +172,20 @@
             attribution: "&copy; OpenStreetMap Contributors",
             maxzoom: 19,
           },
+          oam: {
+            type: "raster",
+            tiles: ["https://apps.kontur.io/raster-tiler/oam/mosaic/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "&copy; OpenAerialMap Contributors",
+            maxzoom: 19,
+          },
         },
         layers: [
+          {
+            id: "oam",
+            type: "raster",
+            source: "oam",
+          },
           {
             id: "osm",
             type: "raster",
